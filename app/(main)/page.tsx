@@ -309,7 +309,8 @@ const Dashboard = () => {
             </div>
 
             {/* Card 3: Total de Gastos */}
-            <div className="col-12 lg:col-6 xl:col-3">
+
+            {/*<div className="col-12 lg:col-6 xl:col-3">
                 <Link href="/uikit/formlayout?module=Gastos" className="no-underline">
                     <div className="card mb-0 cursor-pointer hover:shadow-2 transition-all transition-duration-300">
                         <div className="flex justify-content-between mb-3">
@@ -333,7 +334,8 @@ const Dashboard = () => {
                         <span className="text-500 text-blue-500">Click para ver detalles</span>
                     </div>
                 </Link>
-            </div>
+            </div>*/}
+            
 
             {/* Card 4: Resumen general del dinero de la empresa */}
             {/* <div className="col-12 lg:col-6 xl:col-3">
