@@ -10,7 +10,14 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.48.1",
+    "@fullcalendar/core": "^6.1.21",
+    "@fullcalendar/daygrid": "^6.1.21",
+    "@fullcalendar/interaction": "^6.1.21",
+    "@fullcalendar/list": "^6.1.21",
+    "@fullcalendar/react": "6.1.21",
+    "@fullcalendar/timegrid": "^6.1.21",
+    "@hello-pangea/dnd": "^18.0.1",
+    "@supabase/supabase-js": "^2.56.1",
     "@types/node": "20.3.1",
     "@types/react": "18.2.12",
     "@types/react-dom": "18.2.5",
@@ -43,5 +50,9 @@
     "eslint-config-next": "13.4.6",
     "prettier": "^2.8.8",
     "sass": "^1.63.4"
+  },
+  "overrides": {
+    "@types/react": "18.2.12",
+    "@types/react-dom": "18.2.5"
   }
 }

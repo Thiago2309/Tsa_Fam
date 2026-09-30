@@ -255,6 +255,13 @@ export const getUserRoleIdFromLocalStorage = (): number | null => {
     return userData ? JSON.parse(userData).roleid as number : null;
 };
 
+export const getUserIdFromLocalStorage = (): number | null => {
+    const userData = localStorage.getItem('userData');
+    if (!userData) return null;
+    const { userId } = JSON.parse(userData);
+    return typeof userId === 'number' ? userId : null;
+};
+
 export const getUserNombreFromLocalStorage = (): string | null => {
     const userData = localStorage.getItem('userData');
     if (!userData) return null;

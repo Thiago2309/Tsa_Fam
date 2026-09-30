@@ -58,6 +58,17 @@ const AppMenu = () => {
             ]
         },
 
+        // ========== SECCIÓN AGENDA ==========
+        // Visible para: TODOS. Cada quien ve solo su propia agenda (filtrado
+        // por userid en agendaService.ts); Admin además puede ver la de
+        // cualquier persona del personal y agendarle reuniones desde ahí.
+        {
+            label: 'Agenda',
+            items: [
+                { label: 'Mi Agenda', icon: 'pi pi-fw pi-calendar', to: '/agenda' },
+            ]
+        },
+
         // ========== SECCIÓN GESTION ==========
         // Visible según módulo 'gestion' asignado en Control de Accesos
         ...(puedeVerGestion ? [
