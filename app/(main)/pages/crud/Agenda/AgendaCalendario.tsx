@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import listPlugin from '@fullcalendar/list';
 import interactionPlugin, { DateClickArg } from '@fullcalendar/interaction';
 import esLocale from '@fullcalendar/core/locales/es';
-import { EventClickArg, EventContentArg } from '@fullcalendar/core';
+import { CalendarApi, DatesSetArg, DayHeaderContentArg, EventClickArg, EventContentArg } from '@fullcalendar/core';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
@@ -67,6 +67,38 @@ const colorDeTipo = (tipo: TipoEvento) => TIPOS.find((t) => t.value === tipo)?.c
 const PALETA_PERSONAS = ['#2563eb', '#dc2626', '#16a34a', '#7c3aed', '#ea580c', '#0891b2', '#db2777', '#65a30d', '#9333ea', '#0d9488'];
 const colorDePersona = (userid: number) => PALETA_PERSONAS[userid % PALETA_PERSONAS.length];
 
+type VistaCalendario = 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth' | 'listWeek' | 'listMonth';
+
+const VISTAS_SEGMENTO: { label: string; value: VistaCalendario }[] = [
+    { label: 'Día', value: 'timeGridDay' },
+    { label: 'Semana', value: 'timeGridWeek' },
+    { label: 'Mes', value: 'dayGridMonth' }
+];
+
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const DIAS_CORTOS = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
+
+const capitalizar = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1);
+const claveDia = (fecha: Date) => `${fecha.getFullYear()}-${fecha.getMonth()}-${fecha.getDate()}`;
+const formatoHora = (fecha: Date | null) => (fecha ? fecha.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false }) : '');
+
+// Título del encabezado según la vista: "28 de septiembre – 4 de octubre", "Octubre 2026", etc.
+const tituloDelRango = (inicio: Date, finExclusivo: Date, vista: VistaCalendario) => {
+    const fin = new Date(finExclusivo);
+    fin.setDate(fin.getDate() - 1);
+    if (vista === 'dayGridMonth' || vista === 'listMonth') {
+        return `${capitalizar(MESES[inicio.getMonth()])} ${inicio.getFullYear()}`;
+    }
+    if (vista === 'timeGridDay') {
+        return `${capitalizar(DIAS[inicio.getDay()])} ${inicio.getDate()} de ${MESES[inicio.getMonth()]}`;
+    }
+    if (inicio.getMonth() === fin.getMonth()) {
+        return `${inicio.getDate()} – ${fin.getDate()} de ${MESES[fin.getMonth()]}`;
+    }
+    return `${inicio.getDate()} de ${MESES[inicio.getMonth()]} – ${fin.getDate()} de ${MESES[fin.getMonth()]}`;
+};
+
 const nuevaFechaRedondeada = (base?: Date) => {
     const fecha = base ? new Date(base) : new Date();
     if (!base) {
@@ -104,6 +136,12 @@ const AgendaCalendario: React.FC<AgendaCalendarioProps> = ({ userId, esAdmin, to
     const [form, setForm] = useState<Omit<AgendaEvento, 'id' | 'usuario_nombre' | 'creado_por_nombre'>>(emptyEvento(userId));
     const [submitted, setSubmitted] = useState(false);
     const [guardando, setGuardando] = useState(false);
+
+    // La barra de navegación es propia (no la de FullCalendar), así que
+    // guardamos su API y el rango visible cada vez que cambia la vista.
+    const calendarApi = useRef<CalendarApi | null>(null);
+    const [vista, setVista] = useState<VistaCalendario>('timeGridWeek');
+    const [rango, setRango] = useState<{ inicio: Date; fin: Date } | null>(null);
 
     const cargar = async () => {
         setLoading(true);
@@ -151,17 +189,50 @@ const AgendaCalendario: React.FC<AgendaCalendarioProps> = ({ userId, esAdmin, to
                 const color = ev.estado === 'cancelado' ? '#94a3b8' : vistaTodoElPersonal ? colorDePersona(ev.userid) : ev.color || colorDeTipo(ev.tipo);
                 return {
                     id: String(ev.id),
-                    title: vistaTodoElPersonal && ev.usuario_nombre ? `${ev.titulo} (${ev.usuario_nombre})` : ev.titulo,
+                    title: ev.titulo,
                     start: ev.fecha_inicio,
                     end: ev.fecha_fin,
-                    backgroundColor: color,
-                    borderColor: color,
+                    // El color se pinta dentro de la tarjeta (eventContent); FullCalendar
+                    // solo pone la caja transparente.
+                    backgroundColor: 'transparent',
+                    borderColor: 'transparent',
                     classNames: ev.estado === 'cancelado' ? ['agenda-evento-cancelado'] : ev.estado === 'completado' ? ['agenda-evento-completado'] : [],
-                    extendedProps: { evento: ev }
+                    extendedProps: { evento: ev, color }
                 };
             }),
         [eventos, vistaTodoElPersonal]
     );
+
+    // Cantidad de eventos por día (para el encabezado de cada columna).
+    const eventosPorDia = useMemo(() => {
+        const conteo = new Map<string, number>();
+        eventos.forEach((ev) => {
+            const clave = claveDia(new Date(ev.fecha_inicio));
+            conteo.set(clave, (conteo.get(clave) ?? 0) + 1);
+        });
+        return conteo;
+    }, [eventos]);
+
+    const eventosEnRango = useMemo(() => {
+        if (!rango) return 0;
+        return eventos.filter((ev) => new Date(ev.fecha_inicio) < rango.fin && new Date(ev.fecha_fin) >= rango.inicio).length;
+    }, [eventos, rango]);
+
+    const onDatesSet = (arg: DatesSetArg) => {
+        calendarApi.current = arg.view.calendar;
+        setVista(arg.view.type as VistaCalendario);
+        setRango({ inicio: arg.view.currentStart, fin: arg.view.currentEnd });
+    };
+
+    const esLista = vista === 'listWeek' || vista === 'listMonth';
+
+    const cambiarVista = (nueva: VistaCalendario) => calendarApi.current?.changeView(nueva);
+
+    const alternarLista = () => {
+        if (vista === 'listWeek') cambiarVista('timeGridWeek');
+        else if (vista === 'listMonth') cambiarVista('dayGridMonth');
+        else cambiarVista(vista === 'dayGridMonth' ? 'listMonth' : 'listWeek');
+    };
 
     const abrirNuevo = (fecha?: Date) => {
         setEditando(null);
@@ -177,7 +248,12 @@ const AgendaCalendario: React.FC<AgendaCalendarioProps> = ({ userId, esAdmin, to
         setDialogVisible(true);
     };
 
-    const onDateClick = (arg: DateClickArg) => abrirNuevo(arg.date);
+    const onDateClick = (arg: DateClickArg) => {
+        const fecha = new Date(arg.date);
+        // Clic en un día completo (vista Mes o fila "Todo el día"): proponer 9:00.
+        if (arg.allDay) fecha.setHours(9, 0, 0, 0);
+        abrirNuevo(fecha);
+    };
     const onEventClick = (arg: EventClickArg) => {
         const evento = arg.event.extendedProps.evento as AgendaEvento;
         abrirEditar(evento);
@@ -224,43 +300,147 @@ const AgendaCalendario: React.FC<AgendaCalendarioProps> = ({ userId, esAdmin, to
 
     const renderEventContent = (arg: EventContentArg) => {
         const evento = arg.event.extendedProps.evento as AgendaEvento;
+        const color = arg.event.extendedProps.color as string;
         const tipo = TIPOS.find((t) => t.value === evento.tipo);
+        const hora = arg.event.allDay ? 'Todo el día' : formatoHora(arg.event.start);
+        const detalle = vistaTodoElPersonal && evento.usuario_nombre ? evento.usuario_nombre : evento.ubicacion || tipo?.label || '';
+        const estilo = { '--ev-color': color } as React.CSSProperties;
+
+        if (arg.view.type === 'dayGridMonth') {
+            return (
+                <div className="agenda-ev agenda-ev-mini" style={estilo} title={arg.event.title}>
+                    {!arg.event.allDay && <span className="agenda-ev-hora">{hora}</span>}
+                    <span className="agenda-ev-titulo">{arg.event.title}</span>
+                </div>
+            );
+        }
+
+        if (arg.view.type.startsWith('list')) {
+            return (
+                <div className="agenda-ev-lista">
+                    {tipo && <i className={tipo.icon} style={{ color }} />}
+                    <span className="agenda-ev-titulo">{arg.event.title}</span>
+                    {detalle && <span className="agenda-ev-detalle">· {detalle}</span>}
+                </div>
+            );
+        }
+
         return (
-            <div className="agenda-evento-contenido">
-                {tipo && <i className={tipo.icon} />}
-                <span className="agenda-evento-titulo">{arg.event.title}</span>
+            <div className="agenda-ev" style={estilo} title={`${arg.event.title}${detalle ? ` · ${detalle}` : ''}`}>
+                <div className="agenda-ev-titulo">{arg.event.title}</div>
+                <div className="agenda-ev-sub">
+                    {hora}
+                    {detalle && ` · ${detalle}`}
+                </div>
+            </div>
+        );
+    };
+
+    const renderDayHeader = (arg: DayHeaderContentArg) => {
+        const dia = DIAS_CORTOS[arg.date.getDay()];
+        if (arg.view.type === 'dayGridMonth') {
+            return <span className="agenda-dh-dia">{dia}</span>;
+        }
+        const total = eventosPorDia.get(claveDia(arg.date)) ?? 0;
+        const finDeSemana = arg.date.getDay() === 0 || arg.date.getDay() === 6;
+        return (
+            <div className={`agenda-dh${arg.isToday ? ' agenda-dh-hoy' : ''}${finDeSemana ? ' agenda-dh-finde' : ''}`}>
+                <span className="agenda-dh-dia">{arg.isToday ? `${dia} · HOY` : dia}</span>
+                <span className="agenda-dh-numero">{arg.date.getDate()}</span>
+                <span className="agenda-dh-conteo">{total === 0 ? 'Sin eventos' : `${total} ${total === 1 ? 'evento' : 'eventos'}`}</span>
             </div>
         );
     };
 
     return (
         <div className="agenda-calendario">
-            <div className="agenda-calendario-toolbar">
-                {esAdmin && (
-                    <Dropdown
-                        value={verUsuarioId}
-                        options={[{ label: 'Mi agenda', value: userId }, ...opcionesUsuario]}
-                        onChange={(e) => setVerUsuarioId(e.value)}
-                        className="agenda-selector-usuario"
-                    />
-                )}
-                <Button label="Nuevo evento" icon="pi pi-plus" onClick={() => abrirNuevo()} />
+            <div className="agenda-cal-top">
+                <div className="agenda-cal-top-izq">
+                    <span className="agenda-cal-etiqueta">Calendario</span>
+                    {esAdmin && (
+                        <Dropdown
+                            value={verUsuarioId}
+                            options={[{ label: 'Mi agenda', value: userId }, ...opcionesUsuario]}
+                            onChange={(e) => setVerUsuarioId(e.value)}
+                            className="agenda-selector-usuario"
+                        />
+                    )}
+                    {loading && <i className="pi pi-spin pi-spinner agenda-cal-spinner" />}
+                </div>
+                <button type="button" className={`agenda-btn${esLista ? ' agenda-btn-activo' : ''}`} onClick={alternarLista}>
+                    <i className={esLista ? 'pi pi-calendar' : 'pi pi-list'} />
+                    {esLista ? 'Verlo en calendario' : 'Verlo en lista'}
+                </button>
             </div>
 
-            <FullCalendar
-                plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-                initialView="dayGridMonth"
-                locale={esLocale}
-                headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' }}
-                height="auto"
-                selectable
-                dateClick={onDateClick}
-                eventClick={onEventClick}
-                events={eventosCalendario}
-                eventContent={renderEventContent}
-                buttonText={{ today: 'Hoy', month: 'Mes', week: 'Semana', day: 'Día', list: 'Lista' }}
-                nowIndicator
-            />
+            <div className="agenda-cal-nav">
+                <div className="agenda-cal-nav-izq">
+                    <button type="button" className="agenda-btn" onClick={() => calendarApi.current?.today()}>
+                        Hoy
+                    </button>
+                    <div className="agenda-cal-flechas">
+                        <button type="button" className="agenda-btn agenda-btn-icono" aria-label="Anterior" onClick={() => calendarApi.current?.prev()}>
+                            <i className="pi pi-chevron-left" />
+                        </button>
+                        <button type="button" className="agenda-btn agenda-btn-icono" aria-label="Siguiente" onClick={() => calendarApi.current?.next()}>
+                            <i className="pi pi-chevron-right" />
+                        </button>
+                    </div>
+                    {rango && (
+                        <h3 className="agenda-cal-titulo">
+                            {tituloDelRango(rango.inicio, rango.fin, vista)}
+                            <span className="agenda-cal-conteo">
+                                {eventosEnRango} {eventosEnRango === 1 ? 'evento' : 'eventos'}
+                            </span>
+                        </h3>
+                    )}
+                </div>
+                <div className="agenda-cal-nav-der">
+                    <div className="agenda-segmento" role="tablist">
+                        {VISTAS_SEGMENTO.map((v) => (
+                            <button
+                                key={v.value}
+                                type="button"
+                                role="tab"
+                                aria-selected={vista === v.value}
+                                className={`agenda-segmento-opcion${vista === v.value ? ' activo' : ''}`}
+                                onClick={() => cambiarVista(v.value)}
+                            >
+                                {v.label}
+                            </button>
+                        ))}
+                    </div>
+                    <Button label="Nuevo evento" icon="pi pi-plus" rounded className="agenda-btn-nuevo" onClick={() => abrirNuevo()} />
+                </div>
+            </div>
+
+            <div className={`agenda-cal-grid agenda-vista-${vista}`}>
+                <FullCalendar
+                    plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+                    initialView="timeGridWeek"
+                    locale={esLocale}
+                    firstDay={1}
+                    headerToolbar={false}
+                    height={vista.startsWith('timeGrid') ? 760 : 'auto'}
+                    datesSet={onDatesSet}
+                    selectable
+                    dateClick={onDateClick}
+                    eventClick={onEventClick}
+                    events={eventosCalendario}
+                    eventContent={renderEventContent}
+                    eventDisplay="block"
+                    dayHeaderContent={renderDayHeader}
+                    allDayText="Todo el día"
+                    slotDuration="00:30:00"
+                    slotLabelInterval="01:00"
+                    slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
+                    scrollTime="08:00:00"
+                    dayMaxEvents={3}
+                    moreLinkText={(n) => `+${n} más`}
+                    noEventsText="No hay eventos en este periodo"
+                    nowIndicator
+                />
+            </div>
 
             <Dialog
                 visible={dialogVisible}

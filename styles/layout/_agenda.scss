@@ -26,18 +26,11 @@
 
 /* ---------- Calendario ---------- */
 
-.agenda-calendario-toolbar {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
-}
-
-.agenda-selector-usuario {
-    min-width: 16rem;
-    margin-right: auto;
+.agenda-calendario {
+    --agenda-hoy: #c2410c;
+    --agenda-hoy-bg: rgba(234, 88, 12, 0.06);
+    --agenda-radio: 14px;
+    --agenda-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Menlo, Consolas, monospace;
 }
 
 .agenda-calendario-cargando {
@@ -49,72 +42,417 @@
     color: var(--text-color-secondary);
 }
 
-.agenda-calendario .fc {
-    --fc-border-color: var(--surface-border);
-    --fc-page-bg-color: transparent;
-    --fc-neutral-bg-color: var(--surface-hover);
-    --fc-list-event-hover-bg-color: var(--surface-hover);
-    --fc-today-bg-color: rgba(99, 102, 241, 0.08);
-    font-family: inherit;
+/* Barra superior: "Calendario" + selector de persona + "Verlo en lista" */
+.agenda-cal-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
 }
 
-.agenda-calendario .fc .fc-toolbar-title {
-    font-size: 1.25rem;
+.agenda-cal-top-izq {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.agenda-cal-etiqueta {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--text-color);
+}
+
+.agenda-cal-spinner {
+    color: var(--text-color-secondary);
+}
+
+.agenda-selector-usuario {
+    min-width: 15rem;
+    border-radius: 999px;
+}
+
+/* Botones tipo "pastilla" */
+.agenda-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    height: 2.4rem;
+    padding: 0 1.1rem;
+    border: 1px solid var(--surface-border);
+    border-radius: 999px;
+    background: var(--surface-card);
+    color: var(--text-color);
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+        background: var(--surface-hover);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+    }
+}
+
+.agenda-btn-activo {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.agenda-btn-icono {
+    width: 2.4rem;
+    padding: 0;
+
+    i {
+        font-size: 0.8rem;
+    }
+}
+
+/* Barra de navegación: Hoy, flechas, rango, Día/Semana/Mes, Nuevo evento */
+.agenda-cal-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--agenda-radio);
+    background: var(--surface-card);
+}
+
+.agenda-cal-nav-izq,
+.agenda-cal-nav-der {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.agenda-cal-flechas {
+    display: flex;
+    gap: 0.35rem;
+}
+
+.agenda-cal-titulo {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin: 0 0 0 0.35rem;
+    font-size: 1.2rem;
     font-weight: 700;
     color: var(--text-color);
 }
 
-.agenda-calendario .fc .fc-button {
-    background: var(--surface-card);
+.agenda-cal-conteo {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-color-secondary);
+}
+
+.agenda-segmento {
+    display: inline-flex;
+    padding: 3px;
+    border-radius: 999px;
+    background: var(--surface-ground);
     border: 1px solid var(--surface-border);
-    color: var(--text-color);
-    box-shadow: none;
-    text-transform: capitalize;
 }
 
-.agenda-calendario .fc .fc-button:hover {
-    background: var(--surface-hover);
-}
-
-.agenda-calendario .fc .fc-button-primary:not(:disabled).fc-button-active,
-.agenda-calendario .fc .fc-button-primary:not(:disabled):active {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
-    color: var(--primary-color-text);
-}
-
-.agenda-calendario .fc-daygrid-day-number,
-.agenda-calendario .fc-col-header-cell-cushion {
-    color: var(--text-color);
-}
-
-.agenda-calendario .fc-event {
+.agenda-segmento-opcion {
+    height: 2rem;
+    padding: 0 1rem;
     border: none;
-    border-radius: 0.4rem;
-    padding: 1px 4px;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-color-secondary);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
     cursor: pointer;
-}
+    transition: background-color 0.15s ease, color 0.15s ease;
 
-.agenda-evento-contenido {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    overflow: hidden;
+    &:hover {
+        color: var(--text-color);
+    }
 
-    .agenda-evento-titulo {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+    &.activo {
+        background: var(--surface-card);
+        color: var(--text-color);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
     }
 }
 
+.agenda-btn-nuevo.p-button {
+    height: 2.4rem;
+    padding: 0 1.2rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+@media screen and (max-width: 768px) {
+    .agenda-cal-nav,
+    .agenda-cal-nav-der {
+        width: 100%;
+    }
+
+    .agenda-cal-nav-der {
+        justify-content: space-between;
+    }
+}
+
+/* Contenedor del calendario */
+.agenda-cal-grid {
+    border: 1px solid var(--surface-border);
+    border-radius: var(--agenda-radio);
+    overflow: hidden;
+    background: var(--surface-card);
+}
+
+.agenda-calendario .fc {
+    --fc-border-color: var(--surface-border);
+    --fc-page-bg-color: var(--surface-card);
+    --fc-neutral-bg-color: var(--surface-ground);
+    --fc-list-event-hover-bg-color: var(--surface-hover);
+    --fc-today-bg-color: var(--agenda-hoy-bg);
+    --fc-now-indicator-color: var(--agenda-hoy);
+    font-family: inherit;
+}
+
+.agenda-calendario .fc .fc-scrollgrid,
+.agenda-calendario .fc .fc-list {
+    border: none;
+}
+
+/* Encabezado de cada día (LUN / 28 / 4 eventos) */
+.agenda-calendario .fc .fc-col-header-cell {
+    text-align: left;
+    vertical-align: top;
+}
+
+.agenda-calendario .fc .fc-col-header-cell-cushion {
+    display: block;
+    padding: 0.7rem 0.75rem;
+    color: var(--text-color);
+    text-decoration: none;
+}
+
+.agenda-calendario .fc .fc-col-header-cell.fc-day-today {
+    background: var(--agenda-hoy-bg);
+}
+
+.agenda-dh {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    line-height: 1.2;
+}
+
+.agenda-dh-dia {
+    font-family: var(--agenda-mono);
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--text-color-secondary);
+}
+
+.agenda-dh-numero {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+.agenda-dh-conteo {
+    font-size: 0.72rem;
+    color: var(--text-color-secondary);
+}
+
+.agenda-dh-hoy {
+    .agenda-dh-dia,
+    .agenda-dh-numero {
+        color: var(--agenda-hoy);
+    }
+}
+
+.agenda-dh-finde .agenda-dh-numero {
+    font-style: italic;
+    font-weight: 500;
+    color: var(--text-color-secondary);
+}
+
+/* Columna de horas (09:00, 10:00…) */
+.agenda-calendario .fc .fc-timegrid-axis-cushion,
+.agenda-calendario .fc .fc-timegrid-slot-label-cushion {
+    font-family: var(--agenda-mono);
+    font-size: 0.7rem;
+    color: var(--text-color-secondary);
+}
+
+.agenda-calendario .fc .fc-timegrid-slot {
+    height: 2.4rem;
+}
+
+.agenda-calendario .fc .fc-timegrid-slot-minor {
+    border-top-style: none;
+}
+
+.agenda-calendario .fc .fc-timegrid-slot-label {
+    vertical-align: top;
+}
+
+/* Fines de semana con rayado suave */
+.agenda-calendario .fc .fc-timegrid-col.fc-day-sat,
+.agenda-calendario .fc .fc-timegrid-col.fc-day-sun,
+.agenda-calendario .fc .fc-daygrid-day.fc-day-sat,
+.agenda-calendario .fc .fc-daygrid-day.fc-day-sun {
+    background-image: repeating-linear-gradient(-45deg, transparent 0 7px, rgba(127, 127, 127, 0.07) 7px 8px);
+}
+
+/* Tarjetas de evento */
+.agenda-calendario .fc-event {
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+}
+
+.agenda-calendario .fc-timegrid-event .fc-event-main,
+.agenda-calendario .fc-daygrid-event .fc-event-main {
+    padding: 0;
+}
+
+.agenda-calendario .fc-timegrid-event-harness-inset .fc-timegrid-event {
+    box-shadow: none;
+}
+
+.agenda-ev {
+    height: 100%;
+    overflow: hidden;
+    padding: 0.35rem 0.55rem;
+    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--ev-color) 30%, transparent);
+    border-left: 3px solid var(--ev-color);
+    background: color-mix(in srgb, var(--ev-color) 12%, var(--surface-card));
+    color: var(--text-color);
+    transition: box-shadow 0.15s ease;
+
+    &:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+}
+
+.agenda-calendario .fc-timegrid-event .agenda-ev {
+    margin: 1px 3px;
+    height: calc(100% - 2px);
+}
+
+.agenda-ev-titulo {
+    font-weight: 700;
+    font-size: 0.78rem;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.agenda-ev-sub {
+    font-size: 0.72rem;
+    color: var(--text-color-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Vista Mes: tarjeta compacta en una línea */
+.agenda-ev-mini {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 6px;
+
+    .agenda-ev-hora {
+        font-family: var(--agenda-mono);
+        font-size: 0.68rem;
+        color: var(--text-color-secondary);
+        flex-shrink: 0;
+    }
+
+    .agenda-ev-titulo {
+        font-weight: 600;
+    }
+}
+
+.agenda-calendario .fc .fc-daygrid-day-number {
+    font-weight: 600;
+    color: var(--text-color);
+    text-decoration: none;
+    padding: 0.4rem 0.55rem;
+}
+
+.agenda-calendario .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+    color: var(--agenda-hoy);
+}
+
+.agenda-calendario .fc .fc-daygrid-more-link {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-color-secondary);
+}
+
+/* Vista Lista */
+.agenda-calendario .fc .fc-list-day-cushion {
+    background: var(--surface-ground);
+    font-weight: 700;
+}
+
+.agenda-calendario .fc .fc-list-day-cushion a {
+    color: var(--text-color);
+    text-decoration: none;
+}
+
+.agenda-calendario .fc .fc-list-event-time {
+    font-family: var(--agenda-mono);
+    font-size: 0.78rem;
+    color: var(--text-color-secondary);
+}
+
+.agenda-ev-lista {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    .agenda-ev-titulo {
+        font-size: 0.875rem;
+    }
+
+    .agenda-ev-detalle {
+        color: var(--text-color-secondary);
+        font-size: 0.82rem;
+    }
+}
+
+/* Estados */
 .agenda-evento-cancelado {
     opacity: 0.55;
-    text-decoration: line-through;
+
+    .agenda-ev-titulo {
+        text-decoration: line-through;
+    }
 }
 
 .agenda-evento-completado {
-    opacity: 0.85;
+    opacity: 0.8;
 }
 
 .agenda-evento-meta {
