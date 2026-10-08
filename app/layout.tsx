@@ -1,6 +1,5 @@
 import { ReactNode } from 'react';
 import '../styles/layout/layout.scss';
-import '../styles/demo/Demos.scss';
 import 'primereact/resources/primereact.css';
 import 'primeflex/primeflex.css';
 import 'primeicons/primeicons.css';

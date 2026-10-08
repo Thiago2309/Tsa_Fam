@@ -6,10 +6,8 @@ import { Column } from 'primereact/column';
 import { DataTable } from 'primereact/datatable';
 import { Menu } from 'primereact/menu';
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { ProductService } from '../../demo/service/ProductService';
 import { LayoutContext } from '../../layout/context/layoutcontext';
 import Link from 'next/link';
-import { Demo } from '@/types';
 import { ChartData, ChartOptions } from 'chart.js';
 import { Viaje, fetchViajes } from '../../Services/BD/viajeService';
 import { Gasto, fetchGastos } from '../../Services/BD/gastoService';
@@ -80,7 +78,6 @@ const calcularValorInventario = (productos: Inventario[]): number => {
 };
 
 const Dashboard = () => {
-    const [products, setProducts] = useState<Demo.Product[]>([]);
     const [viajes, setViajes] = useState<Viaje[]>([]);
     const [gastos, setGastos] = useState<Gasto[]>([]);
     const [cajaChica, setCajaChica] = useState<CajaChica[]>([]);
@@ -209,10 +206,6 @@ const Dashboard = () => {
         };
         setLineOptions(lineOptions);
     };
-
-    useEffect(() => {
-        ProductService.getProductsSmall().then((data) => setProducts(data));
-    }, []);
 
     useEffect(() => {
         if (layoutConfig.colorScheme === 'light') {
