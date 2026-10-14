@@ -1,4 +1,5 @@
 import { supabase } from '../superbase.service';
+import { fetchAllRows } from './supabasePagination';
 
 export interface CajaChica {
     id?: number; //Se agrega el ? para que no lo tome Ts y lo mande
@@ -17,17 +18,22 @@ const transformCajaChicaData = (data: any): CajaChica => ({
     egreso: data.egreso,
 });
 
+// Se pagina con fetchAllRows: sin esto PostgREST corta en 1000 filas y el saldo general sale incompleto.
 export const fetchCajaChica = async (): Promise<CajaChica[]> => {
-    const { data, error } = await supabase
-        .from('fetch_caja_chica') // del view que se creo en la base de datos
-        .select('*');
-
-    if (error) {
+    try {
+        const data = await fetchAllRows<any>((query, from, to) =>
+            query
+                .from('fetch_caja_chica') // del view que se creo en la base de datos
+                .select('*')
+                .order('fecha', { ascending: true })
+                .order('id', { ascending: true })
+                .range(from, to)
+        );
+        return data.map(transformCajaChicaData);
+    } catch (error) {
         console.error('Error fetching Caja Chica:', error);
         throw error;
     }
-
-    return data || [];
 };
 
 export const createCajaChica = async (cajaChica: Omit<CajaChica, 'id'>): Promise<CajaChica> => {

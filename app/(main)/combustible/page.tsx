@@ -25,6 +25,7 @@ import { fetchCamiones, Camion } from '../../../Services/BD/inventario/camion/ca
 import { fetchMaquinarias, Maquinaria } from '../../../Services/BD/inventario/maquinaria/maquinariaService';
 import CombustibleWizardDialog from './CombustibleWizardDialog';
 import CombustibleVistaSidebar from './CombustibleVistaSidebar';
+import InputLitros from './InputLitros';
 
 const tipoOptions = [
     { label: 'Camión', value: 'camion' },
@@ -496,16 +497,12 @@ const CombustiblePage = () => {
                             <div className="col-6">
                                 <div className="field">
                                     <label htmlFor="litros">Litros <span style={{ color: 'red' }}>*</span></label>
-                                    <InputNumber
+                                    <InputLitros
                                         id="litros"
                                         value={combustible.litros ?? null}
-                                        onValueChange={(e) => {
-                                            const litros = e.value ?? null;
+                                        onChange={(litros) => {
                                             setCombustible({ ...combustible, litros, importe: litros != null && combustible.precio_unitario != null ? Math.round(combustible.precio_unitario * litros * 100) / 100 : combustible.importe });
                                         }}
-                                        mode="decimal"
-                                        minFractionDigits={0}
-                                        maxFractionDigits={2}
                                         className={submitted && !combustible.litros ? 'p-invalid' : ''}
                                     />
                                     {submitted && !combustible.litros && <small className="p-error">Requerido</small>}

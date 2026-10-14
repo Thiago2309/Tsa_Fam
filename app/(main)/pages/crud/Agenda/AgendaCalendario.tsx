@@ -28,6 +28,7 @@ import {
     fetchUsuariosParaAgenda,
     updateEvento
 } from '../../../../../Services/BD/agendaService';
+import AgendaMovil, { EventoMovil } from './AgendaMovil';
 
 // FullCalendar toca APIs del DOM al montarse; en el App Router de Next.js los
 // componentes 'use client' igual se renderizan primero en el servidor, así
@@ -78,6 +79,27 @@ const VISTAS_SEGMENTO: { label: string; value: VistaCalendario }[] = [
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const DIAS_CORTOS = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
+
+const iniciales = (nombre: string) =>
+    nombre
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((p) => p[0].toUpperCase())
+        .join('');
+
+// En celular se cambia FullCalendar por la vista propia de AgendaMovil.
+const useEsMovil = () => {
+    const [esMovil, setEsMovil] = useState(false);
+    useEffect(() => {
+        const media = window.matchMedia('(max-width: 768px)');
+        const actualizar = () => setEsMovil(media.matches);
+        actualizar();
+        media.addEventListener('change', actualizar);
+        return () => media.removeEventListener('change', actualizar);
+    }, []);
+    return esMovil;
+};
 
 const capitalizar = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1);
 const claveDia = (fecha: Date) => `${fecha.getFullYear()}-${fecha.getMonth()}-${fecha.getDate()}`;
@@ -142,6 +164,7 @@ const AgendaCalendario: React.FC<AgendaCalendarioProps> = ({ userId, esAdmin, to
     const calendarApi = useRef<CalendarApi | null>(null);
     const [vista, setVista] = useState<VistaCalendario>('timeGridWeek');
     const [rango, setRango] = useState<{ inicio: Date; fin: Date } | null>(null);
+    const esMovil = useEsMovil();
 
     const cargar = async () => {
         setLoading(true);
@@ -202,6 +225,30 @@ const AgendaCalendario: React.FC<AgendaCalendarioProps> = ({ userId, esAdmin, to
             }),
         [eventos, vistaTodoElPersonal]
     );
+
+    const eventosMovil = useMemo<EventoMovil[]>(
+        () =>
+            eventosCalendario.map(({ extendedProps: { evento, color } }) => {
+                const tipo = TIPOS.find((t) => t.value === evento.tipo);
+                return {
+                    evento,
+                    color,
+                    icono: tipo?.icon ?? 'pi pi-calendar',
+                    detalle: [vistaTodoElPersonal ? evento.usuario_nombre : null, evento.ubicacion || tipo?.label].filter(Boolean).join(' · '),
+                    iniciales: vistaTodoElPersonal && evento.usuario_nombre ? iniciales(evento.usuario_nombre) : null
+                };
+            }),
+        [eventosCalendario, vistaTodoElPersonal]
+    );
+
+    const selectorUsuario = esAdmin ? (
+        <Dropdown
+            value={verUsuarioId}
+            options={[{ label: 'Mi agenda', value: userId }, ...opcionesUsuario]}
+            onChange={(e) => setVerUsuarioId(e.value)}
+            className="agenda-selector-usuario"
+        />
+    ) : null;
 
     // Cantidad de eventos por día (para el encabezado de cada columna).
     const eventosPorDia = useMemo(() => {
@@ -354,97 +401,97 @@ const AgendaCalendario: React.FC<AgendaCalendarioProps> = ({ userId, esAdmin, to
 
     return (
         <div className="agenda-calendario">
-            <div className="agenda-cal-top">
-                <div className="agenda-cal-top-izq">
-                    <span className="agenda-cal-etiqueta">Calendario</span>
-                    {esAdmin && (
-                        <Dropdown
-                            value={verUsuarioId}
-                            options={[{ label: 'Mi agenda', value: userId }, ...opcionesUsuario]}
-                            onChange={(e) => setVerUsuarioId(e.value)}
-                            className="agenda-selector-usuario"
-                        />
-                    )}
-                    {loading && <i className="pi pi-spin pi-spinner agenda-cal-spinner" />}
-                </div>
-                <button type="button" className={`agenda-btn${esLista ? ' agenda-btn-activo' : ''}`} onClick={alternarLista}>
-                    <i className={esLista ? 'pi pi-calendar' : 'pi pi-list'} />
-                    {esLista ? 'Verlo en calendario' : 'Verlo en lista'}
-                </button>
-            </div>
-
-            <div className="agenda-cal-nav">
-                <div className="agenda-cal-nav-izq">
-                    <button type="button" className="agenda-btn" onClick={() => calendarApi.current?.today()}>
-                        Hoy
-                    </button>
-                    <div className="agenda-cal-flechas">
-                        <button type="button" className="agenda-btn agenda-btn-icono" aria-label="Anterior" onClick={() => calendarApi.current?.prev()}>
-                            <i className="pi pi-chevron-left" />
-                        </button>
-                        <button type="button" className="agenda-btn agenda-btn-icono" aria-label="Siguiente" onClick={() => calendarApi.current?.next()}>
-                            <i className="pi pi-chevron-right" />
+            {esMovil ? (
+                <AgendaMovil eventos={eventosMovil} loading={loading} selectorUsuario={selectorUsuario} onNuevo={abrirNuevo} onEditar={abrirEditar} />
+            ) : (
+                <>
+                    <div className="agenda-cal-top">
+                        <div className="agenda-cal-top-izq">
+                            <span className="agenda-cal-etiqueta">Calendario</span>
+                            {selectorUsuario}
+                            {loading && <i className="pi pi-spin pi-spinner agenda-cal-spinner" />}
+                        </div>
+                        <button type="button" className={`agenda-btn${esLista ? ' agenda-btn-activo' : ''}`} onClick={alternarLista}>
+                            <i className={esLista ? 'pi pi-calendar' : 'pi pi-list'} />
+                            {esLista ? 'Verlo en calendario' : 'Verlo en lista'}
                         </button>
                     </div>
-                    {rango && (
-                        <h3 className="agenda-cal-titulo">
-                            {tituloDelRango(rango.inicio, rango.fin, vista)}
-                            <span className="agenda-cal-conteo">
-                                {eventosEnRango} {eventosEnRango === 1 ? 'evento' : 'eventos'}
-                            </span>
-                        </h3>
-                    )}
-                </div>
-                <div className="agenda-cal-nav-der">
-                    <div className="agenda-segmento" role="tablist">
-                        {VISTAS_SEGMENTO.map((v) => (
-                            <button
-                                key={v.value}
-                                type="button"
-                                role="tab"
-                                aria-selected={vista === v.value}
-                                className={`agenda-segmento-opcion${vista === v.value ? ' activo' : ''}`}
-                                onClick={() => cambiarVista(v.value)}
-                            >
-                                {v.label}
+        
+                    <div className="agenda-cal-nav">
+                        <div className="agenda-cal-nav-izq">
+                            <button type="button" className="agenda-btn" onClick={() => calendarApi.current?.today()}>
+                                Hoy
                             </button>
-                        ))}
+                            <div className="agenda-cal-flechas">
+                                <button type="button" className="agenda-btn agenda-btn-icono" aria-label="Anterior" onClick={() => calendarApi.current?.prev()}>
+                                    <i className="pi pi-chevron-left" />
+                                </button>
+                                <button type="button" className="agenda-btn agenda-btn-icono" aria-label="Siguiente" onClick={() => calendarApi.current?.next()}>
+                                    <i className="pi pi-chevron-right" />
+                                </button>
+                            </div>
+                            {rango && (
+                                <h3 className="agenda-cal-titulo">
+                                    {tituloDelRango(rango.inicio, rango.fin, vista)}
+                                    <span className="agenda-cal-conteo">
+                                        {eventosEnRango} {eventosEnRango === 1 ? 'evento' : 'eventos'}
+                                    </span>
+                                </h3>
+                            )}
+                        </div>
+                        <div className="agenda-cal-nav-der">
+                            <div className="agenda-segmento" role="tablist">
+                                {VISTAS_SEGMENTO.map((v) => (
+                                    <button
+                                        key={v.value}
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={vista === v.value}
+                                        className={`agenda-segmento-opcion${vista === v.value ? ' activo' : ''}`}
+                                        onClick={() => cambiarVista(v.value)}
+                                    >
+                                        {v.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <Button label="Nuevo evento" icon="pi pi-plus" rounded className="agenda-btn-nuevo" onClick={() => abrirNuevo()} />
+                        </div>
                     </div>
-                    <Button label="Nuevo evento" icon="pi pi-plus" rounded className="agenda-btn-nuevo" onClick={() => abrirNuevo()} />
-                </div>
-            </div>
-
-            <div className={`agenda-cal-grid agenda-vista-${vista}`}>
-                <FullCalendar
-                    plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-                    initialView="timeGridWeek"
-                    locale={esLocale}
-                    firstDay={1}
-                    headerToolbar={false}
-                    height={vista.startsWith('timeGrid') ? 760 : 'auto'}
-                    datesSet={onDatesSet}
-                    selectable
-                    dateClick={onDateClick}
-                    eventClick={onEventClick}
-                    events={eventosCalendario}
-                    eventContent={renderEventContent}
-                    eventDisplay="block"
-                    dayHeaderContent={renderDayHeader}
-                    allDayText="Todo el día"
-                    slotDuration="00:30:00"
-                    slotLabelInterval="01:00"
-                    slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
-                    scrollTime="08:00:00"
-                    dayMaxEvents={3}
-                    moreLinkText={(n) => `+${n} más`}
-                    noEventsText="No hay eventos en este periodo"
-                    nowIndicator
-                />
-            </div>
+        
+                    <div className={`agenda-cal-grid agenda-vista-${vista}`}>
+                        <FullCalendar
+                            plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+                            initialView="timeGridWeek"
+                            locale={esLocale}
+                            firstDay={1}
+                            headerToolbar={false}
+                            height={vista.startsWith('timeGrid') ? 760 : 'auto'}
+                            datesSet={onDatesSet}
+                            selectable
+                            dateClick={onDateClick}
+                            eventClick={onEventClick}
+                            events={eventosCalendario}
+                            eventContent={renderEventContent}
+                            eventDisplay="block"
+                            dayHeaderContent={renderDayHeader}
+                            allDayText="Todo el día"
+                            slotDuration="00:30:00"
+                            slotLabelInterval="01:00"
+                            slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
+                            scrollTime="08:00:00"
+                            dayMaxEvents={3}
+                            moreLinkText={(n) => `+${n} más`}
+                            noEventsText="No hay eventos en este periodo"
+                            nowIndicator
+                        />
+                    </div>
+                </>
+            )}
 
             <Dialog
                 visible={dialogVisible}
                 style={{ width: '36rem' }}
+                breakpoints={{ '640px': '95vw' }}
                 header={editando ? 'Editar evento' : 'Nuevo evento'}
                 modal
                 className="p-fluid"
@@ -470,7 +517,7 @@ const AgendaCalendario: React.FC<AgendaCalendarioProps> = ({ userId, esAdmin, to
                 </div>
 
                 <div className="formgrid grid">
-                    <div className="field col-6">
+                    <div className="field col-12 sm:col-6">
                         <label htmlFor="evento-tipo">Tipo</label>
                         <Dropdown
                             id="evento-tipo"
@@ -485,7 +532,7 @@ const AgendaCalendario: React.FC<AgendaCalendarioProps> = ({ userId, esAdmin, to
                             )}
                         />
                     </div>
-                    <div className="field col-6">
+                    <div className="field col-12 sm:col-6">
                         <label htmlFor="evento-estado">Estado</label>
                         <Dropdown id="evento-estado" value={form.estado} options={ESTADOS} onChange={(e) => setForm({ ...form, estado: e.value })} />
                     </div>
@@ -505,7 +552,7 @@ const AgendaCalendario: React.FC<AgendaCalendarioProps> = ({ userId, esAdmin, to
                 )}
 
                 <div className="formgrid grid">
-                    <div className="field col-6">
+                    <div className="field col-12 sm:col-6">
                         <label htmlFor="evento-inicio">Inicio *</label>
                         <PrimeCalendar
                             id="evento-inicio"
@@ -520,7 +567,7 @@ const AgendaCalendario: React.FC<AgendaCalendarioProps> = ({ userId, esAdmin, to
                             dateFormat="dd/mm/yy"
                         />
                     </div>
-                    <div className="field col-6">
+                    <div className="field col-12 sm:col-6">
                         <label htmlFor="evento-fin">Fin *</label>
                         <PrimeCalendar
                             id="evento-fin"

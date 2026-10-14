@@ -11,6 +11,7 @@ import { Combustible, TipoUnidadCombustible, createCombustible, subirFotoCombust
 import { Camion } from '../../../Services/BD/inventario/camion/camionService';
 import { Maquinaria } from '../../../Services/BD/inventario/maquinaria/maquinariaService';
 import { obtenerUbicacionActual } from '../../../Services/BD/Checador/checadorService';
+import InputLitros from './InputLitros';
 
 const tipoOptions = [
     { label: 'Camión', value: 'camion' },
@@ -365,16 +366,12 @@ const CombustibleWizardDialog = ({ visible, onHide, onGuardado, camiones, maquin
                         <div className="col-6">
                             <div className="field">
                                 <label htmlFor="litros">Litros <span style={{ color: 'red' }}>*</span></label>
-                                <InputNumber
+                                <InputLitros
                                     id="litros"
                                     value={combustible.litros ?? null}
-                                    onValueChange={(e) => {
-                                        const litros = e.value ?? null;
+                                    onChange={(litros) => {
                                         setCombustible({ ...combustible, litros, importe: litros != null && combustible.precio_unitario != null ? Math.round(combustible.precio_unitario * litros * 100) / 100 : combustible.importe });
                                     }}
-                                    mode="decimal"
-                                    minFractionDigits={0}
-                                    maxFractionDigits={2}
                                 />
                             </div>
                         </div>
