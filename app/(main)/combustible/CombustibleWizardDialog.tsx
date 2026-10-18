@@ -12,6 +12,7 @@ import { Camion } from '../../../Services/BD/inventario/camion/camionService';
 import { Maquinaria } from '../../../Services/BD/inventario/maquinaria/maquinariaService';
 import { obtenerUbicacionActual } from '../../../Services/BD/Checador/checadorService';
 import InputLitros from './InputLitros';
+import FotoZoom from './FotoZoom';
 
 const tipoOptions = [
     { label: 'Camión', value: 'camion' },
@@ -129,7 +130,7 @@ const CapturaFoto = ({ label, value, onChange, toast }: CapturaFotoProps) => {
 
             {!camaraAbierta && value.preview && (
                 <div className="flex flex-column align-items-center gap-2">
-                    <img src={value.preview} alt={label} className="w-full border-round" />
+                    <FotoZoom src={value.preview} alt={label} />
                     <Button type="button" label="Retomar foto" icon="pi pi-replay" severity="secondary" outlined className="w-full" onClick={retomar} />
                 </div>
             )}
@@ -198,7 +199,7 @@ const CombustibleWizardDialog = ({ visible, onHide, onGuardado, camiones, maquin
     const unidadValida = combustible.tipo_equipo === 'camion' ? !!combustible.camion_id : combustible.tipo_equipo === 'maquinaria' ? !!combustible.maquinaria_id : false;
     const fase1Valida = !!combustible.fecha && !!combustible.tipo_equipo && unidadValida && combustible.id_operador !== null && !!fotoAntes.blob;
     const fase2Valida = !!fotoBomba.blob && !!fotoDespues.blob;
-    const fase3Valida = !!combustible.precio_unitario && !!combustible.litros;
+    const fase3Valida = !!combustible.precio_unitario && !!combustible.litros && !!combustible.importe;
 
     const unidadOptions = combustible.tipo_equipo === 'camion'
         ? camiones.map((c) => ({ label: `${c.nombre} (${c.placa})`, value: c.id }))
@@ -352,10 +353,7 @@ const CombustibleWizardDialog = ({ visible, onHide, onGuardado, camiones, maquin
                                 <InputNumber
                                     id="precio_unitario"
                                     value={combustible.precio_unitario ?? null}
-                                    onValueChange={(e) => {
-                                        const precio = e.value ?? null;
-                                        setCombustible({ ...combustible, precio_unitario: precio, importe: precio != null && combustible.litros != null ? Math.round(precio * combustible.litros * 100) / 100 : combustible.importe });
-                                    }}
+                                    onValueChange={(e) => setCombustible({ ...combustible, precio_unitario: e.value ?? null })}
                                     mode="currency"
                                     currency="MXN"
                                     locale="es-MX"
@@ -369,19 +367,15 @@ const CombustibleWizardDialog = ({ visible, onHide, onGuardado, camiones, maquin
                                 <InputLitros
                                     id="litros"
                                     value={combustible.litros ?? null}
-                                    onChange={(litros) => {
-                                        setCombustible({ ...combustible, litros, importe: litros != null && combustible.precio_unitario != null ? Math.round(combustible.precio_unitario * litros * 100) / 100 : combustible.importe });
-                                    }}
+                                    onChange={(litros) => setCombustible({ ...combustible, litros })}
                                 />
                             </div>
                         </div>
                     </div>
 
                     <div className="field">
-                        <label>Importe (calculado)</label>
-                        <div className="p-inputtext" style={{ fontWeight: 'bold', background: 'var(--surface-100)' }}>
-                            {(combustible.importe || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
-                        </div>
+                        <label htmlFor="importe">Importe cargado <span style={{ color: 'red' }}>*</span></label>
+                        <InputLitros id="importe" moneda value={combustible.importe ?? null} onChange={(importe) => setCombustible({ ...combustible, importe })} />
                     </div>
                 </>
             )}

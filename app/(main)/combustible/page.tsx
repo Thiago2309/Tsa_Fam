@@ -26,6 +26,7 @@ import { fetchMaquinarias, Maquinaria } from '../../../Services/BD/inventario/ma
 import CombustibleWizardDialog from './CombustibleWizardDialog';
 import CombustibleVistaSidebar from './CombustibleVistaSidebar';
 import InputLitros from './InputLitros';
+import FotoZoom from './FotoZoom';
 
 const tipoOptions = [
     { label: 'Camión', value: 'camion' },
@@ -163,7 +164,7 @@ const CombustiblePage = () => {
 
         const unidadValida = combustible.tipo_equipo === 'camion' ? !!combustible.camion_id : combustible.tipo_equipo === 'maquinaria' ? !!combustible.maquinaria_id : false;
 
-        if (!combustible.fecha || !combustible.tipo_equipo || !unidadValida || combustible.id_operador === null || !combustible.precio_unitario || !combustible.litros) {
+        if (!combustible.fecha || !combustible.tipo_equipo || !unidadValida || combustible.id_operador === null || !combustible.precio_unitario || !combustible.litros || !combustible.importe) {
             toast.current?.show({ severity: 'error', summary: 'Error', detail: 'Completa los campos requeridos', life: 3000 });
             return;
         }
@@ -481,10 +482,7 @@ const CombustiblePage = () => {
                                     <InputNumber
                                         id="precio_unitario"
                                         value={combustible.precio_unitario ?? null}
-                                        onValueChange={(e) => {
-                                            const precio = e.value ?? null;
-                                            setCombustible({ ...combustible, precio_unitario: precio, importe: precio != null && combustible.litros != null ? Math.round(precio * combustible.litros * 100) / 100 : combustible.importe });
-                                        }}
+                                        onValueChange={(e) => setCombustible({ ...combustible, precio_unitario: e.value ?? null })}
                                         mode="currency"
                                         currency="MXN"
                                         locale="es-MX"
@@ -500,9 +498,7 @@ const CombustiblePage = () => {
                                     <InputLitros
                                         id="litros"
                                         value={combustible.litros ?? null}
-                                        onChange={(litros) => {
-                                            setCombustible({ ...combustible, litros, importe: litros != null && combustible.precio_unitario != null ? Math.round(combustible.precio_unitario * litros * 100) / 100 : combustible.importe });
-                                        }}
+                                        onChange={(litros) => setCombustible({ ...combustible, litros })}
                                         className={submitted && !combustible.litros ? 'p-invalid' : ''}
                                     />
                                     {submitted && !combustible.litros && <small className="p-error">Requerido</small>}
@@ -511,10 +507,15 @@ const CombustiblePage = () => {
                         </div>
 
                         <div className="field">
-                            <label>Importe (calculado)</label>
-                            <div className="p-inputtext" style={{ fontWeight: 'bold', background: 'var(--surface-100)' }}>
-                                {(combustible.importe || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
-                            </div>
+                            <label htmlFor="importe">Importe cargado <span style={{ color: 'red' }}>*</span></label>
+                            <InputLitros
+                                id="importe"
+                                moneda
+                                value={combustible.importe ?? null}
+                                onChange={(importe) => setCombustible({ ...combustible, importe })}
+                                className={submitted && !combustible.importe ? 'p-invalid' : ''}
+                            />
+                            {submitted && !combustible.importe && <small className="p-error">Requerido</small>}
                         </div>
 
                         <div className="field">
@@ -527,7 +528,7 @@ const CombustiblePage = () => {
                                 ].map((foto) => (
                                     <div key={foto.label} className="col-4">
                                         <div className="text-500 text-sm mb-1">{foto.label}</div>
-                                        {foto.url ? <img src={foto.url} alt={foto.label} className="w-full border-round" /> : <div className="text-sm text-500">Sin foto</div>}
+                                        {foto.url ? <FotoZoom src={foto.url} alt={foto.label} /> : <div className="text-sm text-500">Sin foto</div>}
                                     </div>
                                 ))}
                             </div>

@@ -3,6 +3,7 @@
 import React from 'react';
 import { Sidebar } from 'primereact/sidebar';
 import { Combustible } from '../../../Services/BD/combustibleService';
+import FotoZoom from './FotoZoom';
 
 interface CombustibleVistaSidebarProps {
     combustible: Combustible | null;
@@ -12,7 +13,7 @@ interface CombustibleVistaSidebarProps {
 const FotoBloque = ({ label, url }: { label: string; url?: string | null }) => (
     <div className="mb-3">
         <div className="text-500 text-sm mb-1">{label}</div>
-        {url ? <img src={url} alt={label} className="w-full border-round" /> : <div className="text-sm text-500">Sin foto</div>}
+        {url ? <FotoZoom src={url} alt={label} /> : <div className="text-sm text-500">Sin foto</div>}
     </div>
 );
 
