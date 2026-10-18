@@ -25,7 +25,7 @@ const InputLitros = ({ id, value, onChange, className, moneda }: InputLitrosProp
     return (
         <>
             <InputText id={id} value={display} onChange={handleChange} inputMode="numeric" placeholder={moneda ? '$0.00' : '0.00'} autoComplete="off" className={`w-full ${className ?? ''}`} />
-            <small className="block text-500 mt-1">Escribe solo números; los 2 últimos son decimales.</small>
+            <small className="block text-500 mt-1">Escribe solo números; los 2 últimos son decimales. </small>
         </>
     );
 };
