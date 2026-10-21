@@ -28,6 +28,10 @@ export interface Viaje {
     total_materia?: number | null;
     observaciones?: string | null;
     estatus?: EstatusViaje | null;
+    // Foto del ticket de carga (ruta dentro del bucket privado 'tickets-viaje').
+    // La toma el operador desde la app móvil o se sube aquí en la web.
+    foto_ticket?: string | null;
+    foto_ticket_at?: string | null;
 }
 
 // Flujo de facturación del viaje: se define después de creado, así que puede
@@ -95,6 +99,95 @@ export const fetchViajeById = async (id: number): Promise<Viaje> => {
     }
 
     return data as Viaje;
+};
+
+// ---------------------------------------------------------------------------
+// Foto del ticket de carga (opcional). Necesita el script
+// App_Movil_Tsa/app/scripts/ticket_viaje_setup.sql: columnas foto_ticket y
+// foto_ticket_at en `viajes` y el bucket privado 'tickets-viaje'.
+//
+// Mientras el viaje está en logística, la app móvil guarda la foto como
+// tickets-viaje/logistica/<id de logistica>.jpg. Al aprobarlo (LogisticaAdmin),
+// buscarTicketDeLogistica la encuentra y su ruta se copia al registro nuevo de
+// viajes, porque el de logística se borra.
+// ---------------------------------------------------------------------------
+const BUCKET_TICKETS = 'tickets-viaje';
+
+export interface TicketViaje {
+    foto_ticket: string;
+    foto_ticket_at: string | null;
+}
+
+// Regresa null si no hay foto o si el bucket todavía no existe: aprobar sigue
+// funcionando igual, la foto nunca es obligatoria.
+export const buscarTicketDeLogistica = async (idLogistica: number): Promise<TicketViaje | null> => {
+    const nombre = `${idLogistica}.jpg`;
+    const { data, error } = await supabase.storage.from(BUCKET_TICKETS).list('logistica', { search: nombre, limit: 10 });
+
+    if (error) {
+        console.warn('No se pudo buscar el ticket del viaje:', error.message);
+        return null;
+    }
+
+    const archivo = data?.find((a) => a.name === nombre);
+    if (!archivo) return null;
+
+    return {
+        foto_ticket: `logistica/${nombre}`,
+        foto_ticket_at: archivo.updated_at || archivo.created_at || null
+    };
+};
+
+// URL temporal (1 hora) para ver una foto del bucket privado.
+export const urlTicket = async (ruta: string): Promise<string | null> => {
+    const { data, error } = await supabase.storage.from(BUCKET_TICKETS).createSignedUrl(ruta, 3600);
+    if (error) {
+        console.error('Error generando URL del ticket:', error);
+        return null;
+    }
+    return data?.signedUrl || null;
+};
+
+export const fetchTicketDeViaje = async (idViaje: number): Promise<TicketViaje | null> => {
+    const { data, error } = await supabase.from('viajes').select('foto_ticket, foto_ticket_at').eq('id', idViaje).maybeSingle();
+
+    if (error) {
+        console.error('Error obteniendo ticket del viaje:', error);
+        throw error;
+    }
+    return data?.foto_ticket ? { foto_ticket: data.foto_ticket, foto_ticket_at: data.foto_ticket_at } : null;
+};
+
+// Sube (o reemplaza) la foto de un viaje que sigue en logística, en la misma
+// ruta que usa la app móvil, para que al aprobarlo pase sola a `viajes`.
+export const subirTicketDeLogistica = async (idLogistica: number, archivo: File): Promise<TicketViaje> => {
+    const ruta = `logistica/${idLogistica}.jpg`;
+    const { error } = await supabase.storage.from(BUCKET_TICKETS).upload(ruta, archivo, { contentType: archivo.type || 'image/jpeg', upsert: true });
+    if (error) {
+        console.error('Error subiendo ticket del viaje en logística:', error);
+        throw error;
+    }
+    return { foto_ticket: ruta, foto_ticket_at: new Date().toISOString() };
+};
+
+// Sube (o reemplaza) la foto del ticket de un viaje ya aprobado desde la web.
+export const subirTicketDeViaje = async (idViaje: number, archivo: File): Promise<TicketViaje> => {
+    const extension = (archivo.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const ruta = `viajes/${idViaje}_${Date.now()}.${extension}`;
+
+    const { error: errorSubida } = await supabase.storage.from(BUCKET_TICKETS).upload(ruta, archivo, { contentType: archivo.type || 'image/jpeg' });
+    if (errorSubida) {
+        console.error('Error subiendo ticket del viaje:', errorSubida);
+        throw errorSubida;
+    }
+
+    const ticket = { foto_ticket: ruta, foto_ticket_at: new Date().toISOString() };
+    const { error } = await supabase.from('viajes').update(ticket).eq('id', idViaje);
+    if (error) {
+        console.error('Error guardando ticket del viaje:', error);
+        throw error;
+    }
+    return ticket;
 };
 
 export const createViaje = async (viaje: Omit<Viaje, 'id'>): Promise<Viaje> => {

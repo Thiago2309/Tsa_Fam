@@ -29,6 +29,7 @@ import {
     checkFolioExists,
     fetchInvitados
 } from '../../../../Services/BD/viajeService';
+import TicketViajeDialog from './TicketViajeDialog';
 import { DataTableFilterMeta } from 'primereact/datatable';
 import { InputNumber } from 'primereact/inputnumber';
 import { Checkbox } from 'primereact/checkbox';
@@ -171,6 +172,8 @@ const Crud = () => {
     const [deleteViajeDialog, setDeleteViajeDialog] = useState(false);
     const [deleteViajesDialog, setDeleteViajesDialog] = useState(false);
     const [viaje, setViaje] = useState<Viaje>(emptyViaje);
+    // Viaje cuya foto del ticket de carga se está viendo (null = ventana cerrada)
+    const [ticketDe, setTicketDe] = useState<Viaje | null>(null);
     const [selectedViajes, setSelectedViajes] = useState<Viaje[]>([]);
     const [submitted, setSubmitted] = useState(false);
     const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -988,6 +991,16 @@ const Crud = () => {
         return (
             <>
                 <Button icon="pi pi-pencil" rounded severity="info" className="mr-2" onClick={() => editViaje(rowData)} />
+                <Button
+                    icon="pi pi-image"
+                    rounded
+                    severity="secondary"
+                    className="mr-2"
+                    tooltip="Ticket de carga"
+                    tooltipOptions={{ position: 'top' }}
+                    aria-label="Ver ticket de carga"
+                    onClick={() => setTicketDe(rowData)}
+                />
                 <Button icon="pi pi-trash" rounded severity="danger" onClick={() => confirmDeleteViaje(rowData)} />
             </>
         );
@@ -1069,6 +1082,11 @@ const Crud = () => {
             <div className="col-12">
                 <div className="card">
                     <Toast ref={toast} />
+                    <TicketViajeDialog
+                        origen={ticketDe?.id ? { tipo: 'viaje', id: ticketDe.id } : null}
+                        folio={ticketDe?.folio}
+                        onHide={() => setTicketDe(null)}
+                    />
                     <Toolbar className="mb-4" left={leftToolbarTemplate} right={rightToolbarTemplate}></Toolbar>
 
                     <DataTable

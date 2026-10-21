@@ -23,13 +23,16 @@ import { Dropdown } from 'primereact/dropdown';
 import { Calendar } from 'primereact/calendar';
 import { Checkbox } from 'primereact/checkbox';
 import { supabase } from '../../../../../Services/superbase.service';
-import { createViaje } from '../../../../../Services/BD/viajeService';
+import { buscarTicketDeLogistica, createViaje } from '../../../../../Services/BD/viajeService';
 import { anotarM3ManualEnObservaciones, extraerM3ManualDeObservaciones, quitarAnotacionM3Manual } from '../../../../../Services/BD/m3ManualUtil';
+import TicketViajeDialog from '../TicketViajeDialog';
 
 const LogisticaTabla = () => {
     const [viajes, setViajes] = useState<LogisticaViaje[]>([]);
     const [loading, setLoading] = useState(false);
     const toast = useRef<Toast>(null);
+    // Viaje cuya foto del ticket se está viendo (null = ventana cerrada)
+    const [ticketDe, setTicketDe] = useState<LogisticaViaje | null>(null);
 
     // Estados para el diálogo de edición
     const [editDialog, setEditDialog] = useState(false);
@@ -293,7 +296,12 @@ const LogisticaTabla = () => {
 
             const idInvitado = rowData.id_invitado ? String(rowData.id_invitado) : null;
 
+            // Foto del ticket (opcional) que el operador subió desde la app móvil
+            // o que se subió aquí. Si no hay, el viaje se aprueba igual que antes.
+            const ticket = rowData.id ? await buscarTicketDeLogistica(rowData.id) : null;
+
             const nuevoViaje = {
+                ...(ticket ?? {}),
                 id_cliente: rowData.id_cliente,
                 fecha: fechaViaje,
                 folio_bco: rowData.folio_bco || '',
@@ -394,6 +402,16 @@ const LogisticaTabla = () => {
                     tooltip="Editar Viaje"
                     severity="info" 
                     onClick={() => handleEditar(rowData)}
+                    tooltipOptions={{ position: 'top' }}
+                />
+                <Button
+                    icon="pi pi-image"
+                    rounded
+                    size="small"
+                    severity="secondary"
+                    tooltip="Ticket de carga"
+                    aria-label="Ver ticket de carga"
+                    onClick={() => setTicketDe(rowData)}
                     tooltipOptions={{ position: 'top' }}
                 />
                 <Button
@@ -529,6 +547,11 @@ const LogisticaTabla = () => {
     return (
         <div className="card">
             <Toast ref={toast} />
+            <TicketViajeDialog
+                origen={ticketDe?.id ? { tipo: 'logistica', id: ticketDe.id } : null}
+                folio={ticketDe?.folio}
+                onHide={() => setTicketDe(null)}
+            />
 
             <div className="flex justify-content-between align-items-center mb-3">
                 <div className="flex align-items-center gap-2">
