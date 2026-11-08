@@ -17,19 +17,23 @@ import { fetchCajaChica, createCajaChica, updateCajaChica, deleteCajaChica, Caja
 
 // Origen del movimiento, deducido de la descripción que ponen los registros automáticos
 // (combustibleService -> 'COMBUSTIBLE', gastoService -> 'GASTO - ...', cuentasPorCobrarService -> 'ABONO - ...').
-type OrigenCajaChica = 'Combustible' | 'Gasto' | 'Abono cliente' | 'Manual';
+// Salario: descripciones que inician con 'SALARIO' o que mencionan salario / pago de chofer.
+type OrigenCajaChica = 'Salario' | 'Combustible' | 'Gasto' | 'Abono cliente' | 'Manual';
 type TipoMovimiento = 'todos' | 'ingreso' | 'egreso';
 type Periodo = 'mes' | 'mesAnterior' | 'anio' | 'todo' | 'personalizado';
 
 const obtenerOrigen = (descripcion: string): OrigenCajaChica => {
     const d = (descripcion || '').trim().toUpperCase();
+    if (d.includes('SALARIO') || /PAGO\s+(DE\s+|DEL\s+|AL\s+|A\s+)?CHOFER/.test(d)) return 'Salario';
     if (d.startsWith('COMBUSTIBLE')) return 'Combustible';
     if (d.startsWith('GASTO')) return 'Gasto';
     if (d.startsWith('ABONO')) return 'Abono cliente';
     return 'Manual';
 };
 
-const severidadOrigen: Record<OrigenCajaChica, 'warning' | 'danger' | 'success' | 'info'> = {
+// Salario no tiene severity propio en el Tag de PrimeReact 10, se pinta con estilo (ver origenBodyTemplate)
+const severidadOrigen: Record<OrigenCajaChica, 'warning' | 'danger' | 'success' | 'info' | null> = {
+    Salario: null,
     Combustible: 'warning',
     Gasto: 'danger',
     'Abono cliente': 'success',
@@ -74,6 +78,7 @@ const opcionesTipo = [
 
 const opcionesOrigen = [
     { label: 'Todos los orígenes', value: null },
+    { label: 'Salario / Pago de chofer', value: 'Salario' },
     { label: 'Combustible', value: 'Combustible' },
     { label: 'Gastos / Refacciones', value: 'Gasto' },
     { label: 'Abonos de clientes', value: 'Abono cliente' },
@@ -330,7 +335,7 @@ const CajaChicaCrud = () => {
         return (
             <>
                 <span className="p-column-title">Origen</span>
-                <Tag value={o} severity={severidadOrigen[o]} />
+                <Tag value={o} severity={severidadOrigen[o]} style={o === 'Salario' ? { backgroundColor: 'var(--purple-500)' } : undefined} />
             </>
         );
     };
@@ -488,7 +493,7 @@ const CajaChicaCrud = () => {
                                         </span>
                                     </div>
                                     <div className="surface-200 border-round overflow-hidden" style={{ height: '0.5rem' }}>
-                                        <div className="h-full" style={{ width: `${porcentaje}%`, backgroundColor: `var(--${{ Combustible: 'orange', Gasto: 'red', 'Abono cliente': 'green', Manual: 'blue' }[nombre]}-500)` }} />
+                                        <div className="h-full" style={{ width: `${porcentaje}%`, backgroundColor: `var(--${{ Salario: 'purple', Combustible: 'orange', Gasto: 'red', 'Abono cliente': 'green', Manual: 'blue' }[nombre]}-500)` }} />
                                     </div>
                                 </div>
                             );

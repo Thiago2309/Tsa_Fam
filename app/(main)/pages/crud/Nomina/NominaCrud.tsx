@@ -24,6 +24,7 @@ import { InputNumber } from 'primereact/inputnumber';
 import { fetchClientes } from '../../../../../Services/BD/clientesService';
 import { fetchDescuentos } from '../../../../../Services/BD/Nomina/descuentoService';
 import { Descuento } from '../../../../../Services/BD/Nomina/descuentoService';
+import { fetchNominaConfiguracion, saveNominaConfiguracion, NominaConfiguracion, NOMINA_CONFIG_DEFAULT } from '../../../../../Services/BD/Nomina/nominaConfiguracionService';
 
 const NominaModule = () => {
     const [empleados, setEmpleados] = useState<Empleado[]>([]);
@@ -54,6 +55,10 @@ const NominaModule = () => {
     const [prestamoSeleccionado, setPrestamoSeleccionado] = useState<any>(null);
     const [montoDescuento, setMontoDescuento] = useState(0);
     const [aplicarDescuento, setAplicarDescuento] = useState(false);
+
+    // Configuración de meta / porcentajes (editable por el admin)
+    const [configNomina, setConfigNomina] = useState<NominaConfiguracion>({ ...NOMINA_CONFIG_DEFAULT });
+    const [guardandoConfig, setGuardandoConfig] = useState(false);
 
     const metodosPago = [
         { label: 'Efectivo', value: 'efectivo' },
@@ -202,18 +207,23 @@ const NominaModule = () => {
 
     const cargarDatos = async () => {
         try {
-            const [empleadosData, prestamosData, viajesData, clientesData] = await Promise.all([
+            const [empleadosData, prestamosData, viajesData, clientesData, configData] = await Promise.all([
                 fetchOperadores(),
                 fetchPrestamosActivos(),
                 fetchViajes(),
-                fetchClientes()
+                fetchClientes(),
+                fetchNominaConfiguracion().catch((error) => {
+                    console.error('Error al cargar configuración de nómina:', error);
+                    return { ...NOMINA_CONFIG_DEFAULT };
+                })
             ]);
-            
+
             setEmpleados(empleadosData);
             setPrestamos(prestamosData);
             setViajes(viajesData);
             setClientes(clientesData);
-            
+            setConfigNomina(configData);
+
         } catch (error) {
             toast.current?.show({
                 severity: 'error',
@@ -222,6 +232,44 @@ const NominaModule = () => {
                 life: 3000
             });
         }
+    };
+
+    const guardarConfiguracionNomina = async () => {
+        if (configNomina.meta_rebase < 0 || configNomina.porcentaje_diurno < 0 || configNomina.porcentaje_nocturno_mixto < 0) {
+            toast.current?.show({
+                severity: 'warn',
+                summary: 'Validación',
+                detail: 'La meta y los porcentajes no pueden ser negativos',
+                life: 3000
+            });
+            return;
+        }
+
+        setGuardandoConfig(true);
+        try {
+            const configGuardada = await saveNominaConfiguracion(configNomina);
+            setConfigNomina(configGuardada);
+            toast.current?.show({
+                severity: 'success',
+                summary: 'Éxito',
+                detail: 'Configuración de meta guardada. Se aplicará al calcular la nómina.',
+                life: 3000
+            });
+        } catch (error) {
+            console.error('Error al guardar configuración de nómina:', error);
+            toast.current?.show({
+                severity: 'error',
+                summary: 'Error',
+                detail: 'No se pudo guardar la configuración',
+                life: 3000
+            });
+        } finally {
+            setGuardandoConfig(false);
+        }
+    };
+
+    const formatMetaCorta = (monto: number) => {
+        return monto >= 1000 && monto % 1000 === 0 ? `${monto / 1000}K` : formatCurrency(monto);
     };
 
     const verificarNominaExistente = async () => {
@@ -454,14 +502,14 @@ const NominaModule = () => {
                     const tieneViajeDiurno = viajesEmpleado.some(v => v.horario === 'D');
                     const tieneViajeNocturno = viajesEmpleado.some(v => v.horario === 'N');
 
-                    if (totalViajes > 40000) {
-                        // Si rebasa la meta (40,000) aplicar porcentaje según horario:
-                        // - Si tiene viajes diurnos 'D' aplicar 12%
-                        // - En caso contrario (o nocturno) aplicar 10%
+                    if (totalViajes > configNomina.meta_rebase) {
+                        // Si rebasa la meta configurada aplicar porcentaje según horario:
+                        // - Si solo tiene viajes diurnos 'D' aplicar porcentaje_diurno
+                        // - Si tiene nocturnos o mixtos aplicar porcentaje_nocturno_mixto
                         if (tieneViajeDiurno && !tieneViajeNocturno) {
-                            pagoAlcanceMeta = totalViajes * 0.12;
+                            pagoAlcanceMeta = totalViajes * (configNomina.porcentaje_diurno / 100);
                         } else {
-                            pagoAlcanceMeta = totalViajes * 0.15; // Ajustado a 15% para nocturno o mixto
+                            pagoAlcanceMeta = totalViajes * (configNomina.porcentaje_nocturno_mixto / 100);
                         }
                         rebaso = true;
                     } else {
@@ -983,7 +1031,7 @@ const NominaModule = () => {
                 'Viajes': nomina.cantidad_viajes,
                 'Total Viajes': formatCurrency(nomina.total_viajes),
                 'Salario Base': formatCurrency(nomina.salario_base),
-                'Rebasó 40K': nomina.rebaso ? 'Sí' : 'No',
+                [`Rebasó ${formatMetaCorta(configNomina.meta_rebase)}`]: nomina.rebaso ? 'Sí' : 'No',
                 'Bono': formatCurrency(nomina.bono),
                 'Infonavit': formatCurrency(nomina.descuento_infonavit || 0),
                 'Fonacot': formatCurrency(nomina.descuento_fonacot || 0),
@@ -1230,6 +1278,56 @@ const NominaModule = () => {
 
                     <Card title="Configuración de Nómina" className="mb-4">
                         <div className="p-fluid grid">
+                            <div className="field col-12 md:col-3">
+                                <label htmlFor="meta_rebase" className="font-semibold">Meta a rebasar</label>
+                                <InputNumber
+                                    inputId="meta_rebase"
+                                    value={configNomina.meta_rebase}
+                                    onValueChange={(e) => setConfigNomina({ ...configNomina, meta_rebase: e.value ?? 0 })}
+                                    mode="currency"
+                                    currency="MXN"
+                                    locale="es-MX"
+                                    min={0}
+                                />
+                                <small className="text-gray-600">Monto generado que debe superar el operador</small>
+                            </div>
+                            <div className="field col-12 md:col-3">
+                                <label htmlFor="porcentaje_diurno" className="font-semibold">% Día</label>
+                                <InputNumber
+                                    inputId="porcentaje_diurno"
+                                    value={configNomina.porcentaje_diurno}
+                                    onValueChange={(e) => setConfigNomina({ ...configNomina, porcentaje_diurno: e.value ?? 0 })}
+                                    suffix=" %"
+                                    min={0}
+                                    max={100}
+                                    minFractionDigits={0}
+                                    maxFractionDigits={2}
+                                />
+                                <small className="text-gray-600">Si todos sus viajes fueron de día</small>
+                            </div>
+                            <div className="field col-12 md:col-3">
+                                <label htmlFor="porcentaje_nocturno_mixto" className="font-semibold">% Noche</label>
+                                <InputNumber
+                                    inputId="porcentaje_nocturno_mixto"
+                                    value={configNomina.porcentaje_nocturno_mixto}
+                                    onValueChange={(e) => setConfigNomina({ ...configNomina, porcentaje_nocturno_mixto: e.value ?? 0 })}
+                                    suffix=" %"
+                                    min={0}
+                                    max={100}
+                                    minFractionDigits={0}
+                                    maxFractionDigits={2}
+                                />
+                                <small className="text-gray-600">Si tuvo algún viaje de noche</small>
+                            </div>
+                            <div className="field col-12 md:col-3 flex align-items-center">
+                                <Button
+                                    label="Guardar Configuración"
+                                    icon="pi pi-save"
+                                    loading={guardandoConfig}
+                                    onClick={guardarConfiguracionNomina}
+                                    className="p-button-warning"
+                                />
+                            </div>
                             <div className="field col-12 md:col-12 flex items-end justify-content-end gap-2">
                                 <Button 
                                     label="Verificar" 
@@ -1270,7 +1368,7 @@ const NominaModule = () => {
                                     <Column field="referencia_pago" header="Referencia" />
                                     <Column field="cantidad_viajes" header="Viajes" body={viajesCountBodyTemplate} />
                                     <Column field="salario_base" header="Salario Base" body={salarioBaseBodyTemplate} />
-                                    <Column field="rebaso" header="Rebasó 40K" body={rebasoBodyTemplate} />
+                                    <Column field="rebaso" header={`Rebasó ${formatMetaCorta(configNomina.meta_rebase)}`} body={rebasoBodyTemplate} />
                                     <Column field="bono" header="Bono" body={bonoBodyTemplate} />
                                     <Column field="descuento_infonavit" header="Infonavit" body={(row) => formatCurrency(row.descuento_infonavit)} />
                                     <Column field="descuento_fonacot" header="Fonacot" body={(row) => formatCurrency(row.descuento_fonacot)} />
